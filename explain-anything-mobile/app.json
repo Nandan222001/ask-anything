@@ -1,0 +1,45 @@
+{
+    "expo": {
+        "name": "Explain Anything",
+        "slug": "explain-anything",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "userInterfaceStyle": "automatic",
+        "platforms": [
+            "ios",
+            "android"
+        ],
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.explainanything.app"
+        },
+        "android": {
+            "package": "com.explainanything.app",
+            "permissions": [
+                "android.permission.CAMERA",
+                "android.permission.RECORD_AUDIO"
+            ]
+        },
+        "plugins": [
+            "expo-router",
+            [
+                "expo-camera",
+                {
+                    "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera"
+                }
+            ],
+            [
+                "expo-image-picker",
+                {
+                    "photosPermission": "Allow $(PRODUCT_NAME) to access your photos"
+                }
+            ]
+        ],
+        "scheme": "explainanything",
+        "extra": {
+            "router": {
+                "origin": false
+            }
+        }
+    }
+}

@@ -1,24 +1,12 @@
-// app/onboarding.tsx
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
-    Dimensions,
     Pressable,
-    Image,
+    Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import Animated, {
-    useAnimatedScrollHandler,
-    useSharedValue,
-    useAnimatedStyle,
-    interpolate,
-    Extrapolate,
-} from 'react-native-reanimated';
-import { theme } from '@/styles/theme';
-import { HapticFeedback } from '@/utils/haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -27,42 +15,28 @@ const SLIDES = [
         id: '1',
         title: 'Point & Understand',
         description: 'Snap a photo of anything and get instant, clear explanations',
-        image: require('@/assets/onboarding/slide1.png'),
+        emoji: '📸',
     },
     {
         id: '2',
         title: 'Ask Questions',
         description: 'Dive deeper with follow-up questions to fully understand',
-        image: require('@/assets/onboarding/slide2.png'),
+        emoji: '💬',
     },
     {
         id: '3',
         title: 'Learn Anything',
-        description: 'From homework help to translating menus, we\'ve got you covered',
-        image: require('@/assets/onboarding/slide3.png'),
+        description: "From homework help to translating menus, we've got you covered",
+        emoji: '🎓',
     },
 ];
 
 export default function OnboardingScreen() {
     const router = useRouter();
-    const scrollViewRef = useRef<any>(null);
-    const scrollX = useSharedValue(0);
     const [currentIndex, setCurrentIndex] = useState(0);
 
-    const scrollHandler = useAnimatedScrollHandler({
-        onScroll: (event) => {
-            scrollX.value = event.contentOffset.x;
-        },
-    });
-
     const handleNext = () => {
-        HapticFeedback.selection();
-
         if (currentIndex < SLIDES.length - 1) {
-            scrollViewRef.current?.scrollTo({
-                x: SCREEN_WIDTH * (currentIndex + 1),
-                animated: true,
-            });
             setCurrentIndex(currentIndex + 1);
         } else {
             handleGetStarted();
@@ -70,53 +44,38 @@ export default function OnboardingScreen() {
     };
 
     const handleSkip = () => {
-        HapticFeedback.selection();
         handleGetStarted();
     };
 
-    const handleGetStarted = async () => {
-        await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-        router.replace('/sign-up');
+    const handleGetStarted = () => {
+        router.replace('/(tabs)');
     };
+
+    const currentSlide = SLIDES[currentIndex];
 
     return (
         <View style={styles.container}>
-            {/* Slides */}
-            <Animated.ScrollView
-                ref={scrollViewRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={scrollHandler}
-                scrollEventThrottle={16}
-                onMomentumScrollEnd={(event) => {
-                    const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-                    setCurrentIndex(index);
-                }}
-            >
-                {SLIDES.map((slide, index) => (
-                    <View key={slide.id} style={styles.slide}>
-                        <SlideContent
-                            slide={slide}
-                            index={index}
-                            scrollX={scrollX}
-                        />
-                    </View>
-                ))}
-            </Animated.ScrollView>
+            {/* Slide Content */}
+            <View style={styles.slideContainer}>
+                <Text style={styles.emoji}>{currentSlide.emoji}</Text>
+                <Text style={styles.title}>{currentSlide.title}</Text>
+                <Text style={styles.description}>{currentSlide.description}</Text>
+            </View>
 
-            {/* Pagination dots */}
+            {/* Pagination Dots */}
             <View style={styles.pagination}>
                 {SLIDES.map((_, index) => (
-                    <PaginationDot
+                    <View
                         key={index}
-                        index={index}
-                        scrollX={scrollX}
+                        style={[
+                            styles.dot,
+                            index === currentIndex && styles.dotActive,
+                        ]}
                     />
                 ))}
             </View>
 
-            {/* Bottom actions */}
+            {/* Bottom Actions */}
             <View style={styles.bottomActions}>
                 {currentIndex < SLIDES.length - 1 ? (
                     <>
@@ -137,205 +96,86 @@ export default function OnboardingScreen() {
     );
 }
 
-function SlideContent({
-    slide,
-    index,
-    scrollX,
-}: {
-    slide: typeof SLIDES[0];
-    index: number;
-    scrollX: Animated.SharedValue<number>;
-}) {
-    const imageAnimatedStyle = useAnimatedStyle(() => {
-        const inputRange = [
-            (index - 1) * SCREEN_WIDTH,
-            index * SCREEN_WIDTH,
-            (index + 1) * SCREEN_WIDTH,
-        ];
-
-        const scale = interpolate(
-            scrollX.value,
-            inputRange,
-            [0.8, 1, 0.8],
-            Extrapolate.CLAMP
-        );
-
-        const opacity = interpolate(
-            scrollX.value,
-            inputRange,
-            [0.5, 1, 0.5],
-            Extrapolate.CLAMP
-        );
-
-        return {
-            transform: [{ scale }],
-            opacity,
-        };
-    });
-
-    const textAnimatedStyle = useAnimatedStyle(() => {
-        const inputRange = [
-            (index - 1) * SCREEN_WIDTH,
-            index * SCREEN_WIDTH,
-            (index + 1) * SCREEN_WIDTH,
-        ];
-
-        const translateY = interpolate(
-            scrollX.value,
-            inputRange,
-            [50, 0, 50],
-            Extrapolate.CLAMP
-        );
-
-        const opacity = interpolate(
-            scrollX.value,
-            inputRange,
-            [0, 1, 0],
-            Extrapolate.CLAMP
-        );
-
-        return {
-            transform: [{ translateY }],
-            opacity,
-        };
-    });
-
-    return (
-        <>
-            <Animated.View style={[styles.imageContainer, imageAnimatedStyle]}>
-                <Image source={slide.image} style={styles.image} resizeMode="contain" />
-            </Animated.View>
-
-            <Animated.View style={[styles.textContainer, textAnimatedStyle]}>
-                <Text style={styles.title}>{slide.title}</Text>
-                <Text style={styles.description}>{slide.description}</Text>
-            </Animated.View>
-        </>
-    );
-}
-
-function PaginationDot({
-    index,
-    scrollX,
-}: {
-    index: number;
-    scrollX: Animated.SharedValue<number>;
-}) {
-    const animatedStyle = useAnimatedStyle(() => {
-        const inputRange = [
-            (index - 1) * SCREEN_WIDTH,
-            index * SCREEN_WIDTH,
-            (index + 1) * SCREEN_WIDTH,
-        ];
-
-        const width = interpolate(
-            scrollX.value,
-            inputRange,
-            [8, 24, 8],
-            Extrapolate.CLAMP
-        );
-
-        const opacity = interpolate(
-            scrollX.value,
-            inputRange,
-            [0.3, 1, 0.3],
-            Extrapolate.CLAMP
-        );
-
-        return {
-            width,
-            opacity,
-        };
-    });
-
-    return <Animated.View style={[styles.dot, animatedStyle]} />;
-}
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#fff',
-    },
-    slide: {
-        width: SCREEN_WIDTH,
-        flex: 1,
-        paddingHorizontal: theme.spacing.xl,
+        justifyContent: 'space-between',
         paddingTop: 100,
+        paddingBottom: 40,
     },
-    imageContainer: {
+    slideContainer: {
         flex: 1,
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center',
+        paddingHorizontal: 32,
     },
-    image: {
-        width: SCREEN_WIDTH * 0.8,
-        height: SCREEN_WIDTH * 0.8,
-    },
-    textContainer: {
-        paddingBottom: 100,
-        alignItems: 'center',
+    emoji: {
+        fontSize: 120,
+        marginBottom: 32,
     },
     title: {
         fontSize: 32,
-        fontWeight: theme.typography.fontWeight.bold,
-        color: theme.colors.neutral[900],
+        fontWeight: 'bold',
         textAlign: 'center',
-        marginBottom: theme.spacing.md,
+        marginBottom: 16,
     },
     description: {
-        fontSize: theme.typography.fontSize.lg,
-        color: theme.colors.neutral[600],
+        fontSize: 18,
+        color: '#666',
         textAlign: 'center',
-        lineHeight: theme.typography.lineHeight.relaxed * theme.typography.fontSize.lg,
+        lineHeight: 26,
     },
     pagination: {
         flexDirection: 'row',
         justifyContent: 'center',
-        alignItems: 'center',
-        gap: theme.spacing.xs,
-        marginBottom: theme.spacing.xl,
+        gap: 8,
+        marginBottom: 32,
     },
     dot: {
+        width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: theme.colors.primary[500],
+        backgroundColor: '#D4D4D4',
+    },
+    dotActive: {
+        width: 24,
+        backgroundColor: '#6366F1',
     },
     bottomActions: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: theme.spacing.xl,
-        paddingBottom: 40,
+        paddingHorizontal: 32,
     },
     skipButton: {
-        paddingVertical: theme.spacing.md,
-        paddingHorizontal: theme.spacing.lg,
+        paddingVertical: 16,
+        paddingHorizontal: 24,
     },
     skipText: {
-        fontSize: theme.typography.fontSize.base,
-        color: theme.colors.neutral[600],
+        fontSize: 16,
+        color: '#666',
     },
     nextButton: {
-        paddingVertical: theme.spacing.md,
-        paddingHorizontal: theme.spacing.xl,
-        backgroundColor: theme.colors.primary[500],
-        borderRadius: theme.borderRadius.lg,
+        paddingVertical: 16,
+        paddingHorizontal: 32,
+        backgroundColor: '#6366F1',
+        borderRadius: 12,
     },
     nextText: {
-        fontSize: theme.typography.fontSize.base,
-        fontWeight: theme.typography.fontWeight.semibold,
+        fontSize: 16,
+        fontWeight: '600',
         color: '#fff',
     },
     getStartedButton: {
         flex: 1,
-        paddingVertical: theme.spacing.md,
-        backgroundColor: theme.colors.primary[500],
-        borderRadius: theme.borderRadius.lg,
+        paddingVertical: 16,
+        backgroundColor: '#6366F1',
+        borderRadius: 12,
         alignItems: 'center',
     },
     getStartedText: {
-        fontSize: theme.typography.fontSize.lg,
-        fontWeight: theme.typography.fontWeight.semibold,
+        fontSize: 18,
+        fontWeight: '600',
         color: '#fff',
     },
 });

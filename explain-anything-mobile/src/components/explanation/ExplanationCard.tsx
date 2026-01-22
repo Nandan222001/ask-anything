@@ -19,7 +19,7 @@ interface ExplanationCardProps {
     index?: number;
 }
 
-export function ExplanationCard({
+export default function ExplanationCard({
     explanation,
     onToggleFavorite,
     index = 0,

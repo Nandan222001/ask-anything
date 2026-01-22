@@ -1,6 +1,3 @@
-// src/utils/logger.ts
-import * as Sentry from '@sentry/react-native';
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 class Logger {
@@ -11,7 +8,7 @@ class Logger {
         const logData = data ? { ...data } : {};
 
         if (this.isDevelopment) {
-            const styles = {
+            const styles: Record<LogLevel, string> = {
                 debug: 'color: #9CA3AF',
                 info: 'color: #3B82F6',
                 warn: 'color: #F59E0B',
@@ -19,20 +16,9 @@ class Logger {
             };
 
             console.log(
-                `%c[${timestamp}] ${level.toUpperCase()}: ${message}`,
-                styles[level],
+                `[${timestamp}] ${level.toUpperCase()}: ${message}`,
                 logData
             );
-        }
-
-        // Send errors to Sentry in production
-        if (!this.isDevelopment && level === 'error') {
-            Sentry.captureMessage(message, {
-                level: 'error',
-                contexts: {
-                    custom: logData,
-                },
-            });
         }
     }
 
@@ -58,10 +44,6 @@ class Logger {
             : error;
 
         this.log('error', message, errorData);
-
-        if (!this.isDevelopment && error instanceof Error) {
-            Sentry.captureException(error);
-        }
     }
 }
 
