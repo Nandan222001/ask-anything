@@ -1,9 +1,11 @@
-// app/api/v1/explanations/route.ts
+// app/api/v1/explanations/route.ts (Enhanced)
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { ExplanationService } from '@/services/explanation/ExplanationService';
 import { StorageService } from '@/services/storage/StorageService';
-import { validateRequest } from '@/utils/validation';
+import { QueueService } from '@/services/queue/QueueService';
+import { AnalyticsService } from '@/services/analytics/AnalyticsService';
+import { NotificationService } from '@/services/notification/NotificationService';
+import { z } from 'zod';
 import { logger } from '@/utils/logger';
 
 const createSchema = z.object({
@@ -13,93 +15,84 @@ const createSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-    try {
-        const user = (req as any).user;
+    const user = (req as any).user;
+    const analytics = new AnalyticsService();
+    const queue = new QueueService();
 
-        // Parse and validate request
+    try {
+        // Parse request
         const body = await req.json();
         const data = createSchema.parse(body);
 
-        // Extract image from data URL
+        // Extract image
         const matches = data.image.match(/^data:image\/(\w+);base64,(.+)$/);
         if (!matches) {
-            return NextResponse.json(
-                { error: 'Invalid image format' },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'Invalid image' }, { status: 400 });
         }
 
         const [, mimeType, base64Data] = matches;
         const imageBuffer = Buffer.from(base64Data, 'base64');
 
         // Upload image
-        const storageService = new StorageService();
-        const { url, thumbnail, hash } = await storageService.uploadImage(
+        const storage = new StorageService();
+        const uploaded = await storage.uploadImage(
             imageBuffer,
             user.id,
             `image/${mimeType}`
         );
 
-        // Generate explanation
+        // Create explanation
         const explanationService = new ExplanationService();
-        const result = await explanationService.create({
+        const explanation = await explanationService.create({
             userId: user.id,
-            imageUrl: url,
-            thumbnailUrl: thumbnail,
-            imageHash: hash,
+            imageUrl: uploaded.url,
+            thumbnailUrl: uploaded.thumbnailUrl,
+            imageHash: uploaded.hash,
             prompt: data.prompt,
             isDeveloperMode: data.isDeveloperMode,
         });
 
-        // Log analytics
-        logger.info('Explanation created', {
+        // Track analytics
+        await analytics.trackExplanationCreated({
             userId: user.id,
-            explanationId: result.id,
-            processingTime: result.processingTimeMs,
+            explanationId: explanation.id,
+            category: explanation.category,
+            isDeveloperMode: data.isDeveloperMode,
+            processingTimeMs: explanation.processingTimeMs,
         });
 
-        return NextResponse.json(result, { status: 201 });
-
-    } catch (error) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json(
-                { error: 'Validation failed', details: error.errors },
-                { status: 400 }
-            );
-        }
-
-        logger.error('Failed to create explanation', error);
-
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        );
-    }
-}
-
-export async function GET(req: NextRequest) {
-    try {
-        const user = (req as any).user;
-        const { searchParams } = new URL(req.url);
-
-        const page = parseInt(searchParams.get('page') || '1');
-        const limit = parseInt(searchParams.get('limit') || '20');
-        const category = searchParams.get('category');
-        const search = searchParams.get('search');
-
-        const explanationService = new ExplanationService();
-        const results = await explanationService.list({
+        // Queue background job for further processing
+        await queue.addImageProcessingJob({
             userId: user.id,
-            page,
-            limit,
-            category,
-            search,
+            imageUrl: uploaded.url,
+            explanationId: explanation.id,
         });
 
-        return NextResponse.json(results);
+        // Send push notification if enabled
+        const notification = new NotificationService();
+        await queue.addNotificationJob({
+            userId: user.id,
+            type: 'push',
+            template: 'explanation_ready',
+            data: {
+                title: 'Explanation Ready!',
+                body: `Your ${explanation.category} explanation is ready.`,
+                explanationId: explanation.id,
+            },
+        });
+
+        return NextResponse.json(explanation, { status: 201 });
 
     } catch (error) {
-        logger.error('Failed to list explanations', error);
+        logger.error('Create explanation failed', error);
+
+        // Track error
+        await analytics.track({
+            userId: user?.id,
+            event: 'explanation_creation_failed',
+            properties: { error: (error as Error).message },
+        });
+
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }
